@@ -1,0 +1,2079 @@
+<!--
+  ==========================================================================
+  SPA IMMAGINI CASUALI — Frontend  (versione corretta)
+  ==========================================================================
+
+  Applicazione Single Page (SPA) che permette di:
+    1. Esplorare immagini casuali di gatti (API cataas.com)
+    2. Salvare un'immagine aggiungendo descrizione e voto (1-5 stelle)
+    3. Visualizzare la galleria delle immagini salvate
+    4. Ordinare per voto (crescente / decrescente)
+    5. Filtrare per descrizione tramite barra di ricerca
+    6. Modificare voto e descrizione di un'immagine salvata
+    7. Eliminare un'immagine dalla galleria
+
+  DESIGN: Minimal brutale ispirato a uber.com
+    - Font: Inter (Google Fonts)
+    - Palette: bianco #FFFFFF, nero #000000
+    - Bordi squadrati, nessun border-radius, nessun box-shadow
+    - Transizioni rapide e nette
+
+  Il backend REST gira su http://localhost:1337
+  ==========================================================================
+-->
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Immagini Casuali</title>
+
+    <!-- Google Fonts: Inter — font minimale e professionale -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* ==================================================================
+           RESET E VARIABILI GLOBALI
+           ================================================================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --nero: #000000;
+            --bianco: #FFFFFF;
+            --grigio-chiaro: #F6F6F6;
+            --grigio-medio: #E0E0E0;
+            --grigio-testo: #6B6B6B;
+            --rosso: #C40000;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --transizione: 120ms ease;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bianco);
+            color: var(--nero);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ==================================================================
+           NAVBAR
+           ================================================================== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--nero);
+            color: var(--bianco);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            z-index: 1000;
+        }
+
+        .navbar-logo {
+            font-weight: 900;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+            cursor: default;
+            user-select: none;
+        }
+
+        .navbar-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .navbar-link {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--bianco);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font);
+            transition: background var(--transizione);
+            letter-spacing: -0.2px;
+        }
+
+        .navbar-link:hover {
+            background: #333;
+        }
+
+        .navbar-link.attivo {
+            background: var(--bianco);
+            color: var(--nero);
+        }
+
+        /* ==================================================================
+           LAYOUT PRINCIPALE
+           ================================================================== */
+        .contenuto-principale {
+            padding-top: 64px;
+        }
+
+        .nascosto {
+            display: none !important;
+        }
+
+        /* ==================================================================
+           VISTA "SCOPRI"
+           ================================================================== */
+        .vista-scopri {
+            min-height: calc(100vh - 64px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            position: relative;
+        }
+
+        .hero-immagine {
+            width: 100%;
+            max-width: 720px;
+            aspect-ratio: 4/3;
+            overflow: hidden;
+            border: 1px solid var(--nero);
+            position: relative;
+            background: var(--grigio-chiaro);
+        }
+
+        .hero-immagine img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: opacity 300ms ease;
+        }
+
+        .hero-immagine img.caricamento {
+            opacity: 0.3;
+        }
+
+        .hero-azioni {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            width: 100%;
+            max-width: 720px;
+        }
+
+        /* ==================================================================
+           PULSANTI
+           ================================================================== */
+        .btn {
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: var(--font);
+            cursor: pointer;
+            border: none;
+            transition: all var(--transizione);
+            letter-spacing: -0.2px;
+            flex: 1;
+        }
+
+        .btn-primario {
+            background: var(--nero);
+            color: var(--bianco);
+        }
+
+        .btn-primario:hover {
+            background: #333;
+        }
+
+        .btn-secondario {
+            background: var(--bianco);
+            color: var(--nero);
+            border: 1px solid var(--nero);
+        }
+
+        .btn-secondario:hover {
+            background: var(--grigio-chiaro);
+        }
+
+        .btn-pericolo {
+            background: var(--rosso);
+            color: var(--bianco);
+        }
+
+        .btn-pericolo:hover {
+            background: #A00;
+        }
+
+        .btn-piccolo {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        /* ==================================================================
+           VISTA "GALLERIA"
+           ================================================================== */
+        .vista-galleria {
+            min-height: calc(100vh - 64px);
+            padding: 32px;
+        }
+
+        .galleria-header {
+            max-width: 1200px;
+            margin: 0 auto 32px;
+        }
+
+        .galleria-titolo {
+            font-size: 48px;
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1.1;
+        }
+
+        .galleria-sottotitolo {
+            font-size: 16px;
+            color: var(--grigio-testo);
+            margin-top: 8px;
+        }
+
+        .galleria-toolbar {
+            max-width: 1200px;
+            margin: 0 auto 24px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .input-ricerca {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 0;
+            font-size: 16px;
+            font-family: var(--font);
+            border: none;
+            border-bottom: 2px solid var(--nero);
+            outline: none;
+            background: transparent;
+            transition: border-color var(--transizione);
+        }
+
+        .input-ricerca::placeholder {
+            color: var(--grigio-testo);
+        }
+
+        .input-ricerca:focus {
+            border-bottom-color: var(--grigio-testo);
+        }
+
+        .btn-ordina {
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--font);
+            cursor: pointer;
+            background: var(--bianco);
+            border: 1px solid var(--grigio-medio);
+            transition: all var(--transizione);
+            letter-spacing: -0.2px;
+        }
+
+        .btn-ordina:hover {
+            border-color: var(--nero);
+        }
+
+        .btn-ordina.attivo {
+            background: var(--nero);
+            color: var(--bianco);
+            border-color: var(--nero);
+        }
+
+        /* ==================================================================
+           GRIGLIA CARD
+           ================================================================== */
+        .galleria-griglia {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .card {
+            border: 1px solid var(--nero);
+            overflow: hidden;
+            transition: transform var(--transizione);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .card-immagine {
+            width: 100%;
+            aspect-ratio: 16/10;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .card-immagine img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .card-badge-voto {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--nero);
+            color: var(--bianco);
+            padding: 4px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .card-corpo {
+            padding: 16px;
+        }
+
+        .card-stelle {
+            font-size: 18px;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            color: var(--nero);
+        }
+
+        .card-descrizione {
+            font-size: 14px;
+            color: var(--grigio-testo);
+            line-height: 1.5;
+            margin-bottom: 16px;
+            min-height: 42px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-azioni {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ==================================================================
+           GALLERIA VUOTA
+           ================================================================== */
+        .galleria-vuota {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+            padding: 80px 32px;
+        }
+
+        .galleria-vuota-icona {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .galleria-vuota-testo {
+            font-size: 18px;
+            color: var(--grigio-testo);
+        }
+
+        /* ==================================================================
+           MODALE
+           ================================================================== */
+        .modale-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 24px;
+        }
+
+        .modale {
+            background: var(--bianco);
+            width: 100%;
+            max-width: 500px;
+            border: 1px solid var(--nero);
+            padding: 32px;
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modale-chiudi {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: 300;
+            color: var(--grigio-testo);
+            background: none;
+            border: none;
+            font-family: var(--font);
+            transition: color var(--transizione);
+        }
+
+        .modale-chiudi:hover {
+            color: var(--nero);
+        }
+
+        .modale-titolo {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        .modale-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--grigio-testo);
+            margin-bottom: 6px;
+        }
+
+        .modale-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            font-size: 15px;
+            font-family: var(--font);
+            border: 1px solid var(--grigio-medio);
+            outline: none;
+            resize: vertical;
+            transition: border-color var(--transizione);
+        }
+
+        .modale-textarea:focus {
+            border-color: var(--nero);
+        }
+
+        .modale-contatore {
+            font-size: 12px;
+            color: var(--grigio-testo);
+            text-align: right;
+            margin-top: 4px;
+            margin-bottom: 20px;
+        }
+
+        .modale-contatore.superato {
+            color: var(--rosso);
+            font-weight: 700;
+        }
+
+        .modale-stelle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .modale-stella {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            cursor: pointer;
+            border: 1px solid var(--grigio-medio);
+            background: var(--bianco);
+            transition: all var(--transizione);
+        }
+
+        .modale-stella.selezionata {
+            background: var(--nero);
+            color: var(--bianco);
+            border-color: var(--nero);
+        }
+
+        .modale-stella:hover {
+            border-color: var(--nero);
+        }
+
+        .modale-azione {
+            margin-top: 8px;
+        }
+
+        .modale-azione .btn {
+            width: 100%;
+        }
+
+        .modale-errore {
+            background: #FFF0F0;
+            border: 1px solid var(--rosso);
+            color: var(--rosso);
+            padding: 12px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .modale-anteprima {
+            width: 100%;
+            aspect-ratio: 16/10;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 1px solid var(--grigio-medio);
+        }
+
+        .modale-anteprima img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* ==================================================================
+           TOAST
+           ================================================================== */
+        .toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--nero);
+            color: var(--bianco);
+            padding: 14px 28px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 3000;
+            transition: transform 300ms ease;
+            pointer-events: none;
+        }
+
+        .toast.visibile {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ==================================================================
+           SPINNER
+           ================================================================== */
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--grigio-medio);
+            border-top-color: var(--nero);
+            border-radius: 50%;
+            animation: ruota 0.6s linear infinite;
+            margin: 40px auto;
+        }
+
+        @keyframes ruota {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ==================================================================
+           DIALOG CONFERMA
+           ================================================================== */
+        .conferma-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2500;
+            padding: 24px;
+        }
+
+        .conferma-box {
+            background: var(--bianco);
+            border: 1px solid var(--nero);
+            padding: 32px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .conferma-testo {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .conferma-azioni {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* ==================================================================
+           RESPONSIVE
+           ==================================================================
+           FIX: rimossa la parentesi graffa orfana che c'era dopo questo blocco
+        */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0 16px;
+                height: 56px;
+            }
+
+            .navbar-logo {
+                font-size: 17px;
+            }
+
+            .contenuto-principale {
+                padding-top: 56px;
+            }
+
+            .vista-scopri {
+                padding: 24px 16px;
+                min-height: calc(100vh - 56px);
+            }
+
+            .vista-galleria {
+                padding: 24px 16px;
+            }
+
+            .galleria-titolo {
+                font-size: 32px;
+            }
+
+            .galleria-griglia {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .hero-azioni {
+                flex-direction: column;
+            }
+
+            .btn {
+                padding: 12px 20px;
+                font-size: 15px;
+            }
+
+            .galleria-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        /* ==================================================================
+           EDITOR IMMAGINI AVANZATO
+           ================================================================== */
+        .editor-container {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+            height: 600px;
+        }
+
+        .editor-canvas-wrapper {
+            flex: 1;
+            height: 100%;
+            background: var(--grigio-chiaro);
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--nero);
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .editor-sidebar {
+            width: 280px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .strumento-gruppo {
+            border: 1px solid var(--grigio-medio);
+            padding: 16px;
+            display: block;
+        }
+
+        .strumento-gruppo-titolo {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            color: var(--grigio-testo);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .strumenti-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .editor-btn {
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--bianco);
+            border: 1px solid var(--grigio-medio);
+            cursor: pointer;
+            transition: all var(--transizione);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            text-align: center;
+            min-width: auto;
+        }
+
+        .editor-btn i {
+            font-size: 20px;
+        }
+
+        .editor-btn:hover {
+            border-color: var(--nero);
+            background: var(--grigio-chiaro);
+        }
+
+        .editor-btn.attivo {
+            background: var(--nero);
+            color: var(--bianco);
+            border-color: var(--nero);
+        }
+
+        .controllo-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
+
+        .controllo-row label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--nero);
+        }
+
+        input[type="color"] {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        select {
+            padding: 6px;
+            border: 1px solid var(--grigio-medio);
+            font-family: var(--font);
+            font-size: 13px;
+            outline: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="navbar-logo">Immagini Casuali</div>
+        <div class="navbar-links">
+            <button class="navbar-link attivo" data-vista="scopri">Scopri</button>
+            <button class="navbar-link" data-vista="galleria">Galleria</button>
+        </div>
+    </nav>
+
+    <!-- CONTENUTO PRINCIPALE -->
+    <main class="contenuto-principale">
+
+        <!-- VISTA "SCOPRI" -->
+        <section id="vista-scopri" class="vista-scopri">
+            <div class="hero-immagine">
+                <img id="immagine-hero" src="" alt="Immagine casuale di gatto">
+            </div>
+            <div class="hero-azioni">
+                <button id="btn-nuova" class="btn btn-secondario">Nuova immagine</button>
+                <button id="btn-modifica-scopri" class="btn btn-secondario">Modifica</button>
+                <button id="btn-salva" class="btn btn-primario">Salva</button>
+            </div>
+        </section>
+
+        <!-- VISTA "GALLERIA" -->
+        <section id="vista-galleria" class="vista-galleria nascosto">
+            <div class="galleria-header">
+                <h1 class="galleria-titolo">Galleria</h1>
+                <p class="galleria-sottotitolo" id="conteggio-galleria">0 immagini salvate</p>
+            </div>
+
+            <div class="galleria-toolbar">
+                <input type="text" class="input-ricerca" id="input-ricerca" placeholder="Cerca per descrizione...">
+                <button class="btn-ordina" id="btn-ordina-asc" title="Ordina per voto crescente">Voto ↑</button>
+                <button class="btn-ordina" id="btn-ordina-desc" title="Ordina per voto decrescente">Voto ↓</button>
+            </div>
+
+            <div class="galleria-griglia" id="galleria-griglia"></div>
+        </section>
+    </main>
+
+    <!-- MODALE SALVA/MODIFICA -->
+    <div id="modale-overlay" class="modale-overlay nascosto">
+        <div class="modale">
+            <button class="modale-chiudi" id="modale-chiudi">&times;</button>
+            <h2 class="modale-titolo" id="modale-titolo">Salva immagine</h2>
+
+            <div class="modale-anteprima" id="modale-anteprima">
+                <img id="modale-anteprima-img" src="" alt="Anteprima">
+            </div>
+
+            <div id="modale-errore" class="modale-errore nascosto"></div>
+
+            <label class="modale-label">Descrizione</label>
+            <textarea class="modale-textarea" id="modale-descrizione" maxlength="200"
+                placeholder="Descrivi questa immagine..."></textarea>
+            <div class="modale-contatore" id="modale-contatore">0 / 200</div>
+
+            <label class="modale-label">Voto</label>
+            <div class="modale-stelle" id="modale-stelle">
+                <div class="modale-stella" data-valore="1">★</div>
+                <div class="modale-stella" data-valore="2">★</div>
+                <div class="modale-stella" data-valore="3">★</div>
+                <div class="modale-stella" data-valore="4">★</div>
+                <div class="modale-stella" data-valore="5">★</div>
+            </div>
+
+            <div class="modale-azione">
+                <button class="btn btn-primario" id="modale-conferma">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE EDITOR AVANZATO -->
+    <div id="modale-editor" class="modale-overlay nascosto">
+        <div class="modale" style="max-width: 1100px; width: 95%;">
+            <button class="modale-chiudi" id="editor-chiudi">&times;</button>
+            <h2 class="modale-titolo">Editor Avanzato</h2>
+
+            <div class="editor-container">
+
+                <!-- SIDEBAR STRUMENTI -->
+                <div class="editor-sidebar">
+
+                    <!-- 1. STRUMENTI -->
+                    <div class="strumento-gruppo">
+                        <div class="strumento-gruppo-titolo">Strumenti</div>
+                        <div class="strumenti-grid">
+                            <!--
+                                FIX: rimossi gli onclick inline.
+                                I pulsanti strumento usano data-tool e vengono gestiti
+                                tramite event delegation più in basso nello script.
+                            -->
+                            <button class="editor-btn attivo" data-tool="brush" title="Pennello">
+                                <span>🖊️</span> Pennello
+                            </button>
+                            <button class="editor-btn" data-tool="eraser" title="Gomma">
+                                <span>🧹</span> Gomma
+                            </button>
+                            <button class="editor-btn" data-tool="text" title="Testo">
+                                <span>T</span> Testo
+                            </button>
+                            <button class="editor-btn" data-tool="move" title="Sposta">
+                                <span>✋</span> Sposta
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 2. PROPRIETÀ PENNELLO / GOMMA -->
+                    <div id="panel-brush" class="strumento-gruppo">
+                        <div class="strumento-gruppo-titolo">Pennello</div>
+                        <div class="controllo-row">
+                            <label>Colore</label>
+                            <input type="color" id="brush-color" value="#000000">
+                        </div>
+                        <div class="controllo-row">
+                            <label>Dimensione</label>
+                            <input type="range" id="brush-size" min="1" max="50" value="5">
+                        </div>
+                        <div class="controllo-row">
+                            <label>Tipo</label>
+                            <select id="brush-type">
+                                <option value="round">Tondo</option>
+                                <option value="square">Quadrato</option>
+                                <option value="spray">Spray</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 3. PROPRIETÀ TESTO -->
+                    <div id="panel-text" class="strumento-gruppo nascosto">
+                        <div class="strumento-gruppo-titolo">Testo</div>
+                        <div style="margin-bottom: 8px;">
+                            <input type="text" id="text-input" placeholder="Nuovo testo..." class="input-ricerca"
+                                style="width: 100%;">
+                            <!--
+                                FIX: rimosso onclick inline, gestito via event delegation
+                            -->
+                            <button class="btn btn-piccolo btn-secondario" id="btn-aggiungi-testo"
+                                style="margin-top: 4px; width: 100%;">Aggiungi Testo</button>
+                        </div>
+                        <div class="controllo-row">
+                            <label>Font</label>
+                            <select id="text-font">
+                                <option value="Inter">Inter</option>
+                                <option value="Arial">Arial</option>
+                                <option value="Times New Roman">Times</option>
+                                <option value="Courier New">Courier</option>
+                                <option value="Impact">Impact</option>
+                            </select>
+                        </div>
+                        <div class="controllo-row">
+                            <label>Colore</label>
+                            <input type="color" id="text-color" value="#FF0000">
+                        </div>
+                        <div class="controllo-row">
+                            <label>Dimensione</label>
+                            <input type="range" id="text-size" min="10" max="100" value="40">
+                        </div>
+                    </div>
+
+                    <!-- 4. FILTRI -->
+                    <div class="strumento-gruppo">
+                        <div class="strumento-gruppo-titolo">Filtri Sfondo</div>
+                        <!--
+                            FIX: rimossi onclick inline, gestiti via data-filter
+                        -->
+                        <div class="strumenti-grid">
+                            <button class="editor-btn" data-filter="grayscale">B/N</button>
+                            <button class="editor-btn" data-filter="sepia">Sepia</button>
+                            <button class="editor-btn" data-filter="invert">Invert</button>
+                            <button class="editor-btn" data-filter="reset">Reset</button>
+                        </div>
+                    </div>
+
+                    <!-- AZIONI -->
+                    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+                        <button class="btn btn-primario" id="editor-conferma">💾 Salva Modifiche</button>
+                        <button class="btn btn-secondario" id="editor-annulla">Cancella</button>
+                    </div>
+
+                </div>
+
+                <!-- CANVAS AREA -->
+                <div class="editor-canvas-wrapper">
+                    <canvas id="canvas-editor"></canvas>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- DIALOG CONFERMA ELIMINAZIONE -->
+    <div id="conferma-overlay" class="conferma-overlay nascosto">
+        <div class="conferma-box">
+            <p class="conferma-testo">Eliminare questa immagine? L'azione non può essere annullata.</p>
+            <div class="conferma-azioni">
+                <button class="btn btn-secondario" id="conferma-annulla">Annulla</button>
+                <button class="btn btn-pericolo" id="conferma-elimina">Elimina</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast"></div>
+
+
+    <script>
+        /* ==================================================================
+           CONFIGURAZIONE
+           ================================================================== */
+        const API_BASE = 'http://localhost:1337';
+
+
+        /* ==================================================================
+           RIFERIMENTI AGLI ELEMENTI DEL DOM
+           ==================================================================
+           FIX: rimossi i riferimenti duplicati e quelli a ID inesistenti.
+                I riferimenti all'editor (modaleEditor, editorChiudi, ecc.)
+                sono dichiarati una sola volta più in basso, vicino alla
+                logica dell'editor, per evitare il SyntaxError da const duplicato.
+        */
+
+        /* --- Navigazione --- */
+        const linkNavbar = document.querySelectorAll('.navbar-link');
+
+        /* --- Vista Scopri --- */
+        const vistaScopri = document.getElementById('vista-scopri');
+        const immagineHero = document.getElementById('immagine-hero');
+        const btnNuova = document.getElementById('btn-nuova');
+        const btnSalva = document.getElementById('btn-salva');
+        const btnModificaScopri = document.getElementById('btn-modifica-scopri');
+
+        /* --- Vista Galleria --- */
+        const vistaGalleria = document.getElementById('vista-galleria');
+        const galleriaGriglia = document.getElementById('galleria-griglia');
+        const conteggioGalleria = document.getElementById('conteggio-galleria');
+        const inputRicerca = document.getElementById('input-ricerca');
+        const btnOrdinaAsc = document.getElementById('btn-ordina-asc');
+        const btnOrdinaDesc = document.getElementById('btn-ordina-desc');
+
+        /* --- Modale Salva/Modifica --- */
+        const modaleOverlay = document.getElementById('modale-overlay');
+        const modaleTitolo = document.getElementById('modale-titolo');
+        const modaleAnteprimaImg = document.getElementById('modale-anteprima-img');
+        const modaleDescrizione = document.getElementById('modale-descrizione');
+        const modaleContatore = document.getElementById('modale-contatore');
+        const modaleStelle = document.getElementById('modale-stelle');
+        const modaleConferma = document.getElementById('modale-conferma');
+        const modaleChiudi = document.getElementById('modale-chiudi');
+        const modaleErrore = document.getElementById('modale-errore');
+
+        /* --- Dialog conferma eliminazione --- */
+        const confermaOverlay = document.getElementById('conferma-overlay');
+        const conferenciaAnnulla = document.getElementById('conferma-annulla');
+        const confermaElimina = document.getElementById('conferma-elimina');
+
+        /* --- Toast --- */
+        const toastEl = document.getElementById('toast');
+
+        /* --- Editor (dichiarati qui una sola volta) --- */
+        const modaleEditor = document.getElementById('modale-editor');
+        const editorChiudi = document.getElementById('editor-chiudi');
+        const editorAnnulla = document.getElementById('editor-annulla');
+        const editorConferma = document.getElementById('editor-conferma');
+
+
+        /* ==================================================================
+           STATO DELL'APPLICAZIONE
+           ================================================================== */
+        let urlImmagineCorrente = '';
+        let votoSelezionato = 0;
+        let idModifica = null;
+        let ordinamentoCorrente = 'nessuno';
+        let testoRicerca = '';
+        let immaginiCache = [];
+        let idDaEliminare = null;
+
+
+        /* ==================================================================
+           UTILITY — Escape HTML (prevenzione XSS)
+           ==================================================================
+           FIX: aggiunta funzione per sanificare le stringhe utente prima
+                di inserirle nell'innerHTML, prevenendo attacchi XSS.
+        */
+
+        /**
+         * Converte i caratteri speciali HTML in entità sicure.
+         * @param {string} str - Stringa potenzialmente pericolosa
+         * @returns {string} Stringa con i caratteri HTML escaped
+         */
+        function escapeHTML(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+
+        /* ==================================================================
+           ROUTING SPA — Navigazione tra le viste
+           ================================================================== */
+        linkNavbar.forEach(link => {
+            link.addEventListener('click', () => {
+                const vista = link.dataset.vista;
+
+                linkNavbar.forEach(l => l.classList.remove('attivo'));
+                link.classList.add('attivo');
+
+                if (vista === 'scopri') {
+                    vistaScopri.classList.remove('nascosto');
+                    vistaGalleria.classList.add('nascosto');
+                } else {
+                    vistaScopri.classList.add('nascosto');
+                    vistaGalleria.classList.remove('nascosto');
+                    caricaGalleria();
+                }
+            });
+        });
+
+
+        /* ==================================================================
+           API — Funzioni per comunicare con il backend REST
+           ================================================================== */
+
+        /**
+         * Recupera un'immagine casuale dall'API cataas.com.
+         */
+        async function caricaImmagineRandom() {
+            immagineHero.classList.add('caricamento');
+            try {
+                const risposta = await fetch('https://cataas.com/cat?json=true');
+                const dati = await risposta.json();
+
+                urlImmagineCorrente = dati.url;
+                if (urlImmagineCorrente.startsWith('/')) {
+                    urlImmagineCorrente = 'https://cataas.com' + urlImmagineCorrente;
+                }
+
+                immagineHero.src = urlImmagineCorrente;
+            } catch (errore) {
+                mostraToast('Errore nel caricamento dell\'immagine');
+                console.error('Errore caricamento immagine:', errore);
+            } finally {
+                immagineHero.classList.remove('caricamento');
+            }
+        }
+
+        /**
+         * GET /images — Recupera tutte le immagini salvate.
+         */
+        async function fetchImmagini() {
+            try {
+                const risposta = await fetch(`${API_BASE}/images`);
+                return await risposta.json();
+            } catch (errore) {
+                console.error('Errore nel recupero delle immagini:', errore);
+                mostraToast('Errore di connessione al server');
+                return [];
+            }
+        }
+
+        /**
+         * POST /images — Salva una nuova immagine.
+         */
+        async function salvaImmagineAPI(immagine) {
+            try {
+                const risposta = await fetch(`${API_BASE}/images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(immagine)
+                });
+
+                if (risposta.status === 400) {
+                    const dati = await risposta.json();
+                    return { ok: false, errori: dati.errori || ['Errore di validazione'] };
+                }
+
+                return { ok: risposta.status === 201 };
+            } catch (errore) {
+                console.error('Errore nel salvataggio:', errore);
+                return { ok: false, errori: ['Errore di connessione al server'] };
+            }
+        }
+
+        /**
+         * PUT /images/:id — Modifica un'immagine esistente.
+         */
+        async function modificaImmagineAPI(id, immagine) {
+            try {
+                const risposta = await fetch(`${API_BASE}/images/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(immagine)
+                });
+
+                if (risposta.status === 400) {
+                    const dati = await risposta.json();
+                    return { ok: false, errori: dati.errori || ['Errore di validazione'] };
+                }
+
+                return { ok: risposta.status === 204 };
+            } catch (errore) {
+                console.error('Errore nella modifica:', errore);
+                return { ok: false, errori: ['Errore di connessione al server'] };
+            }
+        }
+
+        /**
+         * DELETE /images/:id — Elimina un'immagine.
+         */
+        async function eliminaImmagineAPI(id) {
+            try {
+                const risposta = await fetch(`${API_BASE}/images/${id}`, {
+                    method: 'DELETE'
+                });
+                return risposta.status === 204;
+            } catch (errore) {
+                console.error('Errore nell\'eliminazione:', errore);
+                return false;
+            }
+        }
+
+
+        /* ==================================================================
+           GALLERIA — Caricamento e rendering
+           ================================================================== */
+
+        /**
+         * Carica le immagini dal server e le visualizza nella griglia.
+         */
+        async function caricaGalleria() {
+            galleriaGriglia.innerHTML = '<div class="spinner"></div>';
+            immaginiCache = await fetchImmagini();
+            renderizzaGalleria();
+        }
+
+        /**
+         * Renderizza le card della galleria dalla cache locale.
+         * Applica filtro di ricerca e ordinamento.
+         *
+         * FIX: usa escapeHTML() per la descrizione e data-attributes
+         *      invece di onclick inline per le azioni delle card.
+         */
+        function renderizzaGalleria() {
+            let immagini = [...immaginiCache];
+
+            /* Filtro ricerca */
+            if (testoRicerca.trim()) {
+                const query = testoRicerca.toLowerCase();
+                immagini = immagini.filter(img =>
+                    img.description && img.description.toLowerCase().includes(query)
+                );
+            }
+
+            /* Ordinamento per voto */
+            if (ordinamentoCorrente === 'asc') {
+                immagini.sort((a, b) => a.rating - b.rating);
+            } else if (ordinamentoCorrente === 'desc') {
+                immagini.sort((a, b) => b.rating - a.rating);
+            }
+
+            /* Aggiorna conteggio */
+            conteggioGalleria.textContent = `${immagini.length} immagin${immagini.length === 1 ? 'e' : 'i'} salvat${immagini.length === 1 ? 'a' : 'e'}`;
+
+            /* Caso: nessuna immagine */
+            if (immagini.length === 0) {
+                galleriaGriglia.innerHTML = `
+                    <div class="galleria-vuota" style="grid-column: 1/-1;">
+                        <div class="galleria-vuota-icona">◻</div>
+                        <div class="galleria-vuota-testo">
+                            ${testoRicerca.trim()
+                        ? 'Nessuna immagine corrisponde alla ricerca.'
+                        : 'Nessuna immagine salvata. Vai alla sezione Scopri per iniziare.'}
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            /*
+             * Rendering card.
+             * FIX: la descrizione viene escaped con escapeHTML() per prevenire XSS.
+             * FIX: i pulsanti usano data-azione e data-id invece di onclick inline
+             *      per evitare problemi con URL contenenti apici e per sicurezza.
+             */
+            galleriaGriglia.innerHTML = immagini.map(img => `
+                <div class="card">
+                    <div class="card-immagine">
+                        <img src="${escapeHTML(img.image_url)}" alt="${escapeHTML(img.description) || 'Immagine salvata'}" loading="lazy">
+                        <div class="card-badge-voto">${img.rating}/5</div>
+                    </div>
+                    <div class="card-corpo">
+                        <div class="card-stelle">${generaStelle(img.rating)}</div>
+                        <p class="card-descrizione">${escapeHTML(img.description) || '<em>Nessuna descrizione</em>'}</p>
+                        <div class="card-azioni">
+                            <button class="btn btn-secondario btn-piccolo" data-azione="modifica" data-id="${img.id}">Modifica</button>
+                            <button class="btn btn-pericolo btn-piccolo" data-azione="elimina" data-id="${img.id}">Elimina</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Event delegation per le azioni delle card della galleria.
+         * FIX: sostituisce gli onclick inline che causavano problemi
+         *      con URL contenenti apici e vulnerabilità XSS.
+         */
+        galleriaGriglia.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-azione]');
+            if (!btn) return;
+
+            const id = parseInt(btn.dataset.id);
+            const azione = btn.dataset.azione;
+
+            if (azione === 'modifica') {
+                const img = immaginiCache.find(i => i.id === id);
+                if (img) {
+                    idModifica = id;
+                    urlImmagineCorrente = img.image_url;
+                    apriEditor(img.image_url);
+                }
+            } else if (azione === 'elimina') {
+                apriConfermaElimina(id);
+            }
+        });
+
+        /**
+         * Genera una stringa di stelle piene e vuote.
+         * @param {number} voto - Voto da 1 a 5
+         * @returns {string} Es. "★★★☆☆" per voto 3
+         */
+        function generaStelle(voto) {
+            let stelle = '';
+            for (let i = 1; i <= 5; i++) {
+                stelle += i <= voto ? '★' : '☆';
+            }
+            return stelle;
+        }
+
+
+        /* ==================================================================
+           MODALE — Apertura, chiusura, logica
+           ================================================================== */
+
+        /**
+         * Apre il modale in modalità "salva nuova immagine".
+         */
+        function apriModaleSalva() {
+            idModifica = null;
+            modaleTitolo.textContent = 'Salva immagine';
+            modaleConferma.textContent = 'Salva';
+
+            modaleAnteprimaImg.src = urlImmagineCorrente;
+
+            modaleDescrizione.value = '';
+            votoSelezionato = 0;
+            aggiornaStelle();
+            aggiornaContatore();
+            nascondiErroreModale();
+
+            modaleOverlay.classList.remove('nascosto');
+        }
+
+        /**
+         * Apre il modale in modalità "modifica immagine esistente".
+         *
+         * FIX: accetta un parametro opzionale urlOverride per visualizzare
+         *      l'immagine modificata dall'editor (data URL) nell'anteprima
+         *      anziché l'URL originale dalla cache.
+         *
+         * @param {number} id - ID dell'immagine da modificare
+         * @param {string} [urlOverride] - URL alternativo (es. data URL dall'editor)
+         */
+        function apriModaleModifica(id, urlOverride) {
+            const img = immaginiCache.find(i => i.id === id);
+            if (!img) return;
+
+            idModifica = id;
+            modaleTitolo.textContent = 'Modifica immagine';
+            modaleConferma.textContent = 'Aggiorna';
+
+            /* FIX: se è stato passato un URL override (dall'editor), usalo.
+               Altrimenti usa l'URL originale dell'immagine. */
+            const urlDaMostrare = urlOverride || img.image_url;
+            modaleAnteprimaImg.src = urlDaMostrare;
+            urlImmagineCorrente = urlDaMostrare;
+
+            modaleDescrizione.value = img.description || '';
+            votoSelezionato = img.rating || 0;
+            aggiornaStelle();
+            aggiornaContatore();
+            nascondiErroreModale();
+
+            modaleOverlay.classList.remove('nascosto');
+        }
+
+        /**
+         * Chiude il modale salva/modifica.
+         */
+        function chiudiModale() {
+            modaleOverlay.classList.add('nascosto');
+        }
+
+        /**
+         * Aggiorna la visualizzazione delle stelle nel modale.
+         */
+        function aggiornaStelle() {
+            const stelle = modaleStelle.querySelectorAll('.modale-stella');
+            stelle.forEach(stella => {
+                const valore = parseInt(stella.dataset.valore);
+                if (valore <= votoSelezionato) {
+                    stella.classList.add('selezionata');
+                } else {
+                    stella.classList.remove('selezionata');
+                }
+            });
+        }
+
+        /**
+         * Aggiorna il contatore di caratteri sotto la textarea.
+         */
+        function aggiornaContatore() {
+            const lunghezza = modaleDescrizione.value.length;
+            modaleContatore.textContent = `${lunghezza} / 200`;
+            if (lunghezza > 200) {
+                modaleContatore.classList.add('superato');
+            } else {
+                modaleContatore.classList.remove('superato');
+            }
+        }
+
+        /**
+         * Mostra un messaggio di errore nel modale.
+         */
+        function mostraErroreModale(messaggio) {
+            modaleErrore.textContent = messaggio;
+            modaleErrore.classList.remove('nascosto');
+        }
+
+        /**
+         * Nasconde il messaggio di errore nel modale.
+         */
+        function nascondiErroreModale() {
+            modaleErrore.classList.add('nascosto');
+        }
+
+
+        /* ==================================================================
+           EVENT LISTENERS — Collegamento eventi
+           ================================================================== */
+
+        btnNuova.addEventListener('click', caricaImmagineRandom);
+        btnSalva.addEventListener('click', apriModaleSalva);
+        modaleChiudi.addEventListener('click', chiudiModale);
+
+        modaleOverlay.addEventListener('click', (e) => {
+            if (e.target === modaleOverlay) chiudiModale();
+        });
+
+        modaleDescrizione.addEventListener('input', aggiornaContatore);
+
+        /* Click sulle stelle — imposta il voto (event delegation) */
+        modaleStelle.addEventListener('click', (e) => {
+            const stella = e.target.closest('.modale-stella');
+            if (!stella) return;
+
+            votoSelezionato = parseInt(stella.dataset.valore);
+            aggiornaStelle();
+        });
+
+        /**
+         * Pulsante "Salva" / "Aggiorna" nel modale.
+         *
+         * FIX: usa sempre urlImmagineCorrente come image_url,
+         *      perché è già impostato correttamente sia in apriModaleSalva
+         *      che in apriModaleModifica (con eventuale URL dall'editor).
+         */
+        modaleConferma.addEventListener('click', async () => {
+            nascondiErroreModale();
+
+            /* Validazione client-side */
+            if (votoSelezionato < 1) {
+                mostraErroreModale('Seleziona un voto (almeno 1 stella).');
+                return;
+            }
+
+            if (modaleDescrizione.value.length > 200) {
+                mostraErroreModale('La descrizione non può superare i 200 caratteri.');
+                return;
+            }
+
+            /* FIX: usa sempre urlImmagineCorrente, che è stato impostato
+               correttamente prima dell'apertura del modale */
+            const immagine = {
+                image_url: urlImmagineCorrente,
+                description: modaleDescrizione.value.trim(),
+                rating: votoSelezionato
+            };
+
+            let risultato;
+
+            if (idModifica !== null) {
+                risultato = await modificaImmagineAPI(idModifica, immagine);
+            } else {
+                risultato = await salvaImmagineAPI(immagine);
+            }
+
+            if (risultato.ok) {
+                chiudiModale();
+                mostraToast(idModifica ? 'Immagine aggiornata' : 'Immagine salvata');
+
+                if (idModifica === null) {
+                    caricaImmagineRandom();
+                }
+
+                caricaGalleria();
+            } else {
+                mostraErroreModale(risultato.errori?.join(', ') || 'Errore sconosciuto');
+            }
+        });
+
+
+        /* ==================================================================
+           RICERCA — Filtro in tempo reale
+           ================================================================== */
+        inputRicerca.addEventListener('input', () => {
+            testoRicerca = inputRicerca.value;
+            renderizzaGalleria();
+        });
+
+
+        /* ==================================================================
+           ORDINAMENTO — Toggle crescente / decrescente
+           ================================================================== */
+        btnOrdinaAsc.addEventListener('click', () => {
+            if (ordinamentoCorrente === 'asc') {
+                ordinamentoCorrente = 'nessuno';
+                btnOrdinaAsc.classList.remove('attivo');
+            } else {
+                ordinamentoCorrente = 'asc';
+                btnOrdinaAsc.classList.add('attivo');
+                btnOrdinaDesc.classList.remove('attivo');
+            }
+            renderizzaGalleria();
+        });
+
+        btnOrdinaDesc.addEventListener('click', () => {
+            if (ordinamentoCorrente === 'desc') {
+                ordinamentoCorrente = 'nessuno';
+                btnOrdinaDesc.classList.remove('attivo');
+            } else {
+                ordinamentoCorrente = 'desc';
+                btnOrdinaDesc.classList.add('attivo');
+                btnOrdinaAsc.classList.remove('attivo');
+            }
+            renderizzaGalleria();
+        });
+
+
+        /* ==================================================================
+           ELIMINAZIONE — Dialog di conferma
+           ================================================================== */
+
+        function apriConfermaElimina(id) {
+            idDaEliminare = id;
+            confermaOverlay.classList.remove('nascosto');
+        }
+
+        conferenciaAnnulla.addEventListener('click', () => {
+            confermaOverlay.classList.add('nascosto');
+            idDaEliminare = null;
+        });
+
+        confermaElimina.addEventListener('click', async () => {
+            if (idDaEliminare === null) return;
+
+            const ok = await eliminaImmagineAPI(idDaEliminare);
+
+            confermaOverlay.classList.add('nascosto');
+
+            if (ok) {
+                mostraToast('Immagine eliminata');
+                caricaGalleria();
+            } else {
+                mostraToast('Errore nell\'eliminazione');
+            }
+
+            idDaEliminare = null;
+        });
+
+        confermaOverlay.addEventListener('click', (e) => {
+            if (e.target === confermaOverlay) {
+                confermaOverlay.classList.add('nascosto');
+                idDaEliminare = null;
+            }
+        });
+
+
+        /* ==================================================================
+           TOAST — Notifica temporanea
+           ================================================================== */
+        let toastTimer = null;
+
+        function mostraToast(messaggio) {
+            if (toastTimer) clearTimeout(toastTimer);
+
+            toastEl.textContent = messaggio;
+            toastEl.classList.add('visibile');
+
+            toastTimer = setTimeout(() => {
+                toastEl.classList.remove('visibile');
+            }, 2500);
+        }
+
+
+        /* ==================================================================
+           NAVIGAZIONE DA TASTIERA
+           ==================================================================
+           FIX: aggiunta gestione Escape anche per il modale editor.
+        */
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                /* Priorità: dialog conferma > editor > modale salva */
+                if (!confermaOverlay.classList.contains('nascosto')) {
+                    confermaOverlay.classList.add('nascosto');
+                    idDaEliminare = null;
+                }
+                else if (!modaleEditor.classList.contains('nascosto')) {
+                    chiudiEditor();
+                }
+                else if (!modaleOverlay.classList.contains('nascosto')) {
+                    chiudiModale();
+                }
+            }
+        });
+
+
+        /* ==================================================================
+           EDITOR IMMAGINI AVANZATO — Classe
+           ==================================================================
+           FIX: inizializzato lastPos nel costruttore per evitare crash
+                al primo tratto di disegno.
+           FIX: setTool usa data-tool per evidenziare il pulsante attivo
+                invece del fragile toString().includes().
+        */
+        class ImageEditor {
+            constructor() {
+                this.canvas = document.getElementById('canvas-editor');
+                this.ctx = this.canvas.getContext('2d');
+
+                /* Layer virtuali */
+                this.baseImage = new Image();
+                this.baseImage.crossOrigin = 'Anonymous';
+                this.drawingCanvas = document.createElement('canvas');
+                this.drawingCtx = this.drawingCanvas.getContext('2d');
+                this.textObjects = [];
+
+                /* Stato strumenti */
+                this.currentTool = 'brush';
+                this.isDrawing = false;
+                this.isDragging = false;
+                this.selectedTextId = null;
+                this.dragStart = { x: 0, y: 0 };
+
+                /* FIX: lastPos inizializzato per evitare crash */
+                this.lastPos = { x: 0, y: 0 };
+
+                /* Parametri pennello */
+                this.brushSize = 5;
+                this.brushColor = '#000000';
+                this.brushType = 'round';
+
+                /* Filtro corrente */
+                this.filterStyle = 'none';
+
+                /* Eventi canvas */
+                this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                this.canvas.addEventListener('mouseout', this.handleMouseUp.bind(this));
+
+                /* Bind controlli UI */
+                this.bindUI();
+            }
+
+            bindUI() {
+                document.getElementById('brush-size').addEventListener('input', (e) => {
+                    this.brushSize = parseInt(e.target.value);
+                });
+                document.getElementById('brush-color').addEventListener('input', (e) => {
+                    this.brushColor = e.target.value;
+                });
+                document.getElementById('brush-type').addEventListener('change', (e) => {
+                    this.brushType = e.target.value;
+                });
+
+                document.getElementById('text-size').addEventListener('input', (e) => {
+                    this.updateSelectedText('size', parseInt(e.target.value));
+                });
+                document.getElementById('text-color').addEventListener('input', (e) => {
+                    this.updateSelectedText('color', e.target.value);
+                });
+                document.getElementById('text-font').addEventListener('change', (e) => {
+                    this.updateSelectedText('font', e.target.value);
+                });
+
+                /* Pulsante "Aggiungi Testo" */
+                document.getElementById('btn-aggiungi-testo').addEventListener('click', () => {
+                    this.addText();
+                });
+
+                /*
+                 * Event delegation per i pulsanti strumento (data-tool)
+                 * e per i pulsanti filtro (data-filter).
+                 * FIX: sostituisce gli onclick inline che erano fragili e
+                 *      non funzionavano correttamente per evidenziare il
+                 *      pulsante attivo.
+                 */
+                document.querySelector('.editor-sidebar').addEventListener('click', (e) => {
+                    const toolBtn = e.target.closest('[data-tool]');
+                    if (toolBtn) {
+                        this.setTool(toolBtn.dataset.tool);
+                        return;
+                    }
+
+                    const filterBtn = e.target.closest('[data-filter]');
+                    if (filterBtn) {
+                        this.applyFilter(filterBtn.dataset.filter);
+                        return;
+                    }
+                });
+            }
+
+            init(imgSrc) {
+                this.baseImage.src = imgSrc;
+                this.textObjects = [];
+                this.filterStyle = 'none';
+                this.selectedTextId = null;
+                this.lastPos = { x: 0, y: 0 };
+
+                this.baseImage.onload = () => {
+                    const maxWidth = 800;
+                    const scale = Math.min(1, maxWidth / this.baseImage.width);
+                    this.canvas.width = this.baseImage.width * scale;
+                    this.canvas.height = this.baseImage.height * scale;
+
+                    this.drawingCanvas.width = this.canvas.width;
+                    this.drawingCanvas.height = this.canvas.height;
+                    this.drawingCtx.clearRect(0, 0, this.drawingCanvas.width, this.drawingCanvas.height);
+
+                    this.render();
+                };
+            }
+
+            /* --- RENDER --- */
+            render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                /* 1. Sfondo con eventuale filtro */
+                this.ctx.save();
+                if (this.filterStyle !== 'none') this.ctx.filter = this.filterStyle;
+                this.ctx.drawImage(this.baseImage, 0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.restore();
+
+                /* 2. Layer disegno */
+                this.ctx.drawImage(this.drawingCanvas, 0, 0);
+
+                /* 3. Testi */
+                this.textObjects.forEach(obj => {
+                    this.ctx.save();
+                    this.ctx.font = `bold ${obj.size}px ${obj.font}`;
+                    this.ctx.fillStyle = obj.color;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+
+                    this.ctx.shadowColor = 'white';
+                    this.ctx.shadowBlur = 4;
+                    this.ctx.fillText(obj.text, obj.x, obj.y);
+                    this.ctx.shadowBlur = 0;
+
+                    /* Box selezione */
+                    if (obj.id === this.selectedTextId) {
+                        const dims = this.ctx.measureText(obj.text);
+                        this.ctx.strokeStyle = '#000';
+                        this.ctx.lineWidth = 2;
+                        this.ctx.setLineDash([5, 5]);
+                        this.ctx.strokeRect(
+                            obj.x - dims.width / 2 - 10,
+                            obj.y - obj.size / 2 - 10,
+                            dims.width + 20,
+                            obj.size + 20
+                        );
+                    }
+                    this.ctx.restore();
+                });
+            }
+
+            /* --- CAMBIO STRUMENTO ---
+             * FIX: usa data-tool per trovare e evidenziare il pulsante corretto,
+             *      invece del fragile toString().includes().
+             */
+            setTool(tool) {
+                this.currentTool = tool;
+
+                /* Aggiorna pulsanti attivi usando data-tool */
+                document.querySelectorAll('[data-tool]').forEach(btn => {
+                    btn.classList.toggle('attivo', btn.dataset.tool === tool);
+                });
+
+                /* Mostra pannelli contestuali */
+                document.getElementById('panel-brush').classList.toggle('nascosto',
+                    tool === 'text' || tool === 'move');
+                document.getElementById('panel-text').classList.toggle('nascosto',
+                    tool !== 'text' && tool !== 'move');
+            }
+
+            applyFilter(type) {
+                switch (type) {
+                    case 'grayscale': this.filterStyle = 'grayscale(100%)'; break;
+                    case 'sepia': this.filterStyle = 'sepia(100%)'; break;
+                    case 'invert': this.filterStyle = 'invert(100%)'; break;
+                    default: this.filterStyle = 'none';
+                }
+                this.render();
+            }
+
+            /* --- EVENTI MOUSE --- */
+            getPos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: (e.clientX - rect.left) * (this.canvas.width / rect.width),
+                    y: (e.clientY - rect.top) * (this.canvas.height / rect.height)
+                };
+            }
+
+            handleMouseDown(e) {
+                const pos = this.getPos(e);
+
+                if (this.currentTool === 'brush' || this.currentTool === 'eraser') {
+                    this.isDrawing = true;
+                    /* FIX: assegnare lastPos PRIMA di chiamare drawStroke,
+                       altrimenti lastPos è undefined al primo click */
+                    this.lastPos = pos;
+                    this.drawStroke(pos);
+                }
+                else if (this.currentTool === 'move' || this.currentTool === 'text') {
+                    /* Hit testing per il testo */
+                    const clickedIndex = this.findTextAtPos(pos);
+                    if (clickedIndex !== -1) {
+                        this.isDragging = true;
+                        this.selectedTextId = this.textObjects[clickedIndex].id;
+                        this.dragStart = pos;
+                        this.render();
+
+                        /* Popola input UI con valori testo selezionato */
+                        const obj = this.textObjects[clickedIndex];
+                        document.getElementById('text-size').value = obj.size;
+                        document.getElementById('text-color').value = obj.color;
+                        document.getElementById('text-font').value = obj.font;
+                        document.getElementById('panel-text').classList.remove('nascosto');
+                    } else {
+                        /* Deseleziona se click fuori */
+                        this.selectedTextId = null;
+                        /* FIX: se siamo in text tool, mantieni panel-text visibile
+                           per permettere l'aggiunta di nuovo testo */
+                        if (this.currentTool === 'move') {
+                            document.getElementById('panel-text').classList.add('nascosto');
+                        }
+                        this.render();
+                    }
+                }
+            }
+
+            handleMouseMove(e) {
+                const pos = this.getPos(e);
+
+                if (this.isDrawing) {
+                    this.drawStroke(pos);
+                    this.lastPos = pos;
+                }
+                else if (this.isDragging && this.selectedTextId !== null) {
+                    const idx = this.textObjects.findIndex(t => t.id === this.selectedTextId);
+                    if (idx !== -1) {
+                        const dx = pos.x - this.dragStart.x;
+                        const dy = pos.y - this.dragStart.y;
+                        this.textObjects[idx].x += dx;
+                        this.textObjects[idx].y += dy;
+                        this.dragStart = pos;
+                        this.render();
+                    }
+                }
+            }
+
+            handleMouseUp() {
+                this.isDrawing = false;
+                this.isDragging = false;
+            }
+
+            drawStroke(pos) {
+                const ctx = this.drawingCtx;
+                ctx.lineWidth = this.brushSize;
+                ctx.strokeStyle = this.brushColor;
+                ctx.lineCap = this.brushType === 'square' ? 'butt' : 'round';
+                ctx.lineJoin = 'round';
+
+                if (this.currentTool === 'eraser') {
+                    ctx.globalCompositeOperation = 'destination-out';
+                } else {
+                    ctx.globalCompositeOperation = 'source-over';
+                }
+
+                if (this.brushType === 'spray' && this.currentTool !== 'eraser') {
+                    for (let i = 0; i < 20; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const radius = Math.random() * this.brushSize;
+                        const xOffset = Math.cos(angle) * radius;
+                        const yOffset = Math.sin(angle) * radius;
+                        ctx.fillStyle = this.brushColor;
+                        ctx.fillRect(pos.x + xOffset, pos.y + yOffset, 1, 1);
+                    }
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(this.lastPos.x, this.lastPos.y);
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                }
+
+                this.render();
+            }
+
+            /* --- LOGICA TESTO --- */
+            addText() {
+                const text = document.getElementById('text-input').value;
+                if (!text) return;
+
+                this.textObjects.push({
+                    id: Date.now(),
+                    text: text,
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2,
+                    size: parseInt(document.getElementById('text-size').value) || 40,
+                    color: document.getElementById('text-color').value,
+                    font: document.getElementById('text-font').value
+                });
+
+                document.getElementById('text-input').value = '';
+                this.selectedTextId = this.textObjects[this.textObjects.length - 1].id;
+                this.setTool('move');
+                this.render();
+            }
+
+            findTextAtPos(pos) {
+                for (let i = this.textObjects.length - 1; i >= 0; i--) {
+                    const obj = this.textObjects[i];
+                    this.ctx.font = `bold ${obj.size}px ${obj.font}`;
+                    const dims = this.ctx.measureText(obj.text);
+                    const width = dims.width;
+                    const height = obj.size;
+
+                    if (pos.x >= obj.x - width / 2 - 10 && pos.x <= obj.x + width / 2 + 10 &&
+                        pos.y >= obj.y - height / 2 - 10 && pos.y <= obj.y + height / 2 + 10) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            updateSelectedText(prop, value) {
+                if (this.selectedTextId !== null) {
+                    const idx = this.textObjects.findIndex(t => t.id === this.selectedTextId);
+                    if (idx !== -1) {
+                        this.textObjects[idx][prop] = value;
+                        this.render();
+                    }
+                }
+            }
+
+            exportImage() {
+                /* Renderizza un frame finale pulito (senza box selezione) */
+                const tempSelected = this.selectedTextId;
+                this.selectedTextId = null;
+                this.render();
+                const dataUrl = this.canvas.toDataURL('image/jpeg', 0.9);
+                this.selectedTextId = tempSelected;
+                return dataUrl;
+            }
+        }
+
+        /* Istanza globale editor */
+        const editor = new ImageEditor();
+
+
+        /* ==================================================================
+           EDITOR — Apertura, chiusura, conferma
+           ================================================================== */
+
+        /**
+         * Apre il modale editor con l'immagine specificata.
+         * @param {string} imgSrc - URL o data URL dell'immagine da editare
+         */
+        function apriEditor(imgSrc) {
+            if (!imgSrc) return;
+            modaleEditor.classList.remove('nascosto');
+            editor.init(imgSrc);
+        }
+
+        /**
+         * Chiude il modale editor.
+         */
+        function chiudiEditor() {
+            modaleEditor.classList.add('nascosto');
+        }
+
+        editorChiudi.addEventListener('click', chiudiEditor);
+        editorAnnulla.addEventListener('click', chiudiEditor);
+
+        /**
+         * Conferma dell'editor: esporta l'immagine e apre il modale appropriato.
+         *
+         * FIX: controlla idModifica per capire se stiamo modificando un'immagine
+         *      esistente o salvandone una nuova. Prima chiamava sempre
+         *      apriModaleSalva() che resettava idModifica a null, causando
+         *      la creazione di duplicati invece di aggiornare l'immagine.
+         */
+        editorConferma.addEventListener('click', () => {
+            const dataUrl = editor.exportImage();
+            urlImmagineCorrente = dataUrl;
+            chiudiEditor();
+
+            /* FIX: se idModifica è impostato → stiamo modificando un'immagine
+               dalla galleria, quindi apri il modale di modifica con l'URL editato.
+               Altrimenti → nuova immagine dalla vista Scopri. */
+            if (idModifica !== null) {
+                apriModaleModifica(idModifica, urlImmagineCorrente);
+            } else {
+                apriModaleSalva();
+            }
+        });
+
+        /* Pulsante "Modifica" nella vista Scopri */
+        btnModificaScopri.addEventListener('click', () => {
+            /* Assicurati che idModifica sia null: stiamo editando una NUOVA immagine */
+            idModifica = null;
+            apriEditor(urlImmagineCorrente);
+        });
+
+        /* Click sull'overlay dell'editor → chiude */
+        modaleEditor.addEventListener('click', (e) => {
+            if (e.target === modaleEditor) chiudiEditor();
+        });
+
+
+        /* ==================================================================
+           INIZIALIZZAZIONE
+           ==================================================================
+           Carica la prima immagine random all'avvio.
+        */
+        caricaImmagineRandom();
+    </script>
+
+</body>
+
+</html>

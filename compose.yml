@@ -1,0 +1,22 @@
+services:
+
+  webserver:
+    build:
+      context: 'webserver'
+    ports:
+      - 1337:1337
+    volumes:
+      - ./webserver/src:/app/src
+    environment:
+      - DB_HOST=database
+    depends_on:
+      - database
+
+  database:
+    image: mariadb:11
+    ports: 
+      - 3306:3306
+    environment:
+      - MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1
+    volumes:
+      - ./create-db.sql:/docker-entrypoint-initdb.d/init.sql
