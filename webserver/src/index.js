@@ -268,6 +268,20 @@ const server = http.createServer(async (req, res) => {
         res.end();
     }
 
+    /* --- PUT /images/reorder → Aggiorna le posizioni di più immagini --- */
+    else if (reqMatch('PUT', '/images/reorder')) {
+        const ordini = await getBody();
+        if (!Array.isArray(ordini)) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ errori: ['Il body deve essere un array di oggetti {id, position}'] }));
+            return;
+        }
+
+        const ok = await db.aggiornaPosizioni(ordini);
+        res.statusCode = ok ? 204 : 500;
+        res.end();
+    }
+
     /* --- Fallback: endpoint non trovato → 404 --- */
     else {
         res.statusCode = 404;

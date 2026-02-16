@@ -318,6 +318,11 @@
             transform: translateY(-2px);
         }
 
+        .card.drag-over {
+            border: 2px dashed var(--nero);
+            background: var(--grigio-chiaro);
+        }
+
         .card-immagine {
             width: 100%;
             aspect-ratio: 16/10;
@@ -801,11 +806,41 @@
         }
 
         select {
-            padding: 6px;
+            padding: 8px;
             border: 1px solid var(--grigio-medio);
             font-family: var(--font);
             font-size: 13px;
             outline: none;
+            background: var(--bianco);
+        }
+
+        .editor-btn-pericolo {
+            margin-top: 12px;
+            background: #FFF0F0;
+            color: var(--rosso);
+            border: 1px solid #FFCACA;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: all var(--transizione);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .editor-btn-pericolo:hover {
+            background: var(--rosso);
+            color: var(--bianco);
+            border-color: var(--rosso);
+        }
+
+        .editor-btn-pericolo.disabilitato {
+            opacity: 0.3;
+            pointer-events: none;
+            filter: grayscale(1);
         }
     </style>
 </head>
@@ -969,8 +1004,13 @@
                         </div>
                         <div class="controllo-row">
                             <label>Dimensione</label>
-                            <input type="range" id="text-size" min="10" max="100" value="40">
+                            <input type="range" id="text-size" min="10" max="150" value="40">
                         </div>
+
+                        <!-- Tasto Elimina Testo -->
+                        <button class="editor-btn-pericolo disabilitato" id="btn-elimina-testo">
+                            <span>🗑️</span> Elimina Testo
+                        </button>
                     </div>
 
                     <!-- 4. FILTRI -->
@@ -1299,7 +1339,7 @@
              *      per evitare problemi con URL contenenti apici e per sicurezza.
              */
             galleriaGriglia.innerHTML = immagini.map(img => `
-                <div class="card">
+                <div class="card" draggable="true" data-id="${img.id}">
                     <div class="card-immagine">
                         <img src="${escapeHTML(img.image_url)}" alt="${escapeHTML(img.description) || 'Immagine salvata'}" loading="lazy">
                         <div class="card-badge-voto">${img.rating}/5</div>
@@ -1314,6 +1354,119 @@
                     </div>
                 </div>
             `).join('');
+
+            /* Inizializza Drag & Drop dopo il rendering */
+            inizializzaDragAndDrop();
+        }
+
+        /* ==================================================================
+           DRAG & DROP — Ordinamento interattivo
+           ================================================================== */
+
+        function inizializzaDragAndDrop() {
+            const cards = galleriaGriglia.querySelectorAll('.card');
+
+            cards.forEach(card => {
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragover', handleDragOver);
+                card.addEventListener('drop', handleDrop);
+                card.addEventListener('dragend', handleDragEnd);
+                card.addEventListener('dragleave', handleDragLeave);
+            });
+        }
+
+        let cardTrascinata = null;
+
+        function handleDragStart(e) {
+            /* Non permettere il drag se c'è una ricerca o un ordinamento attivo */
+            if (testoRicerca.trim() || ordinamentoCorrente !== 'nessuno') {
+                e.preventDefault();
+                mostraToast('Disabilita filtri/ordinamento per riordinare liberamente');
+                return;
+            }
+
+            cardTrascinata = this;
+            this.style.opacity = '0.4';
+            this.style.transform = 'scale(0.95)';
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.id);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+        }
+
+        function handleDragLeave() {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDragEnd() {
+            this.style.opacity = '1';
+            this.style.transform = '';
+            galleriaGriglia.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+
+            if (cardTrascinata !== this) {
+                /* Calcola la nuova posizione nel DOM */
+                const tutteLeCard = Array.from(galleriaGriglia.querySelectorAll('.card'));
+                const indexOrigine = tutteLeCard.indexOf(cardTrascinata);
+                const indexDestinazione = tutteLeCard.indexOf(this);
+
+                if (indexOrigine < indexDestinazione) {
+                    this.after(cardTrascinata);
+                } else {
+                    this.before(cardTrascinata);
+                }
+
+                /* Salva il nuovo ordine sul backend */
+                await salvaNuovoOrdine();
+            }
+        }
+
+        /**
+         * Invia il nuovo ordine al backend.
+         */
+        async function salvaNuovoOrdine() {
+            const cards = galleriaGriglia.querySelectorAll('.card');
+            const nuovoOrdine = Array.from(cards).map((card, index) => ({
+                id: parseInt(card.dataset.id),
+                position: index
+            }));
+
+            try {
+                const risposta = await fetch(`${API_BASE}/images/reorder`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(nuovoOrdine)
+                });
+
+                if (risposta.status === 204) {
+                    /* Aggiorna la cache locale per riflettere il nuovo ordine */
+                    /* Creiamo una mappa id -> posizione */
+                    const mappaPosizioni = {};
+                    nuovoOrdine.forEach(item => mappaPosizioni[item.id] = item.position);
+
+                    immaginiCache.forEach(img => {
+                        if (mappaPosizioni[img.id] !== undefined) {
+                            img.position = mappaPosizioni[img.id];
+                        }
+                    });
+
+                    /* Le immagini rimangono ordinate per position ASC grazie a salvaNuovoOrdine */
+                    mostraToast('Ordine salvato');
+                } else {
+                    mostraToast('Errore nel salvataggio dell\'ordine');
+                }
+            } catch (errore) {
+                console.error('Errore salvataggio ordine:', errore);
+                mostraToast('Errore di connessione');
+            }
         }
 
         /**
@@ -1694,6 +1847,7 @@
                 this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
                 this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
                 this.canvas.addEventListener('mouseout', this.handleMouseUp.bind(this));
+                this.canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
 
                 /* Bind controlli UI */
                 this.bindUI();
@@ -1723,6 +1877,11 @@
                 /* Pulsante "Aggiungi Testo" */
                 document.getElementById('btn-aggiungi-testo').addEventListener('click', () => {
                     this.addText();
+                });
+
+                /* Pulsante "Elimina Testo" */
+                document.getElementById('btn-elimina-testo').addEventListener('click', () => {
+                    this.deleteSelectedText();
                 });
 
                 /*
@@ -1764,6 +1923,7 @@
                     this.drawingCanvas.height = this.canvas.height;
                     this.drawingCtx.clearRect(0, 0, this.drawingCanvas.width, this.drawingCanvas.height);
 
+                    this.updateDeleteButtonState();
                     this.render();
                 };
             }
@@ -1828,6 +1988,8 @@
                     tool === 'text' || tool === 'move');
                 document.getElementById('panel-text').classList.toggle('nascosto',
                     tool !== 'text' && tool !== 'move');
+
+                this.updateDeleteButtonState();
             }
 
             applyFilter(type) {
@@ -1870,6 +2032,7 @@
 
                         /* Popola input UI con valori testo selezionato */
                         const obj = this.textObjects[clickedIndex];
+                        document.getElementById('text-input').value = obj.text;
                         document.getElementById('text-size').value = obj.size;
                         document.getElementById('text-color').value = obj.color;
                         document.getElementById('text-font').value = obj.font;
@@ -1882,6 +2045,20 @@
                         if (this.currentTool === 'move') {
                             document.getElementById('panel-text').classList.add('nascosto');
                         }
+                        this.render();
+                    }
+                    this.updateDeleteButtonState();
+                }
+            }
+
+            handleDoubleClick(e) {
+                const pos = this.getPos(e);
+                const idx = this.findTextAtPos(pos);
+                if (idx !== -1) {
+                    const nuovoTesto = prompt('Modifica testo:', this.textObjects[idx].text);
+                    if (nuovoTesto !== null && nuovoTesto.trim() !== '') {
+                        this.textObjects[idx].text = nuovoTesto.trim();
+                        document.getElementById('text-input').value = this.textObjects[idx].text;
                         this.render();
                     }
                 }
@@ -1962,7 +2139,25 @@
                 document.getElementById('text-input').value = '';
                 this.selectedTextId = this.textObjects[this.textObjects.length - 1].id;
                 this.setTool('move');
+                this.updateDeleteButtonState();
                 this.render();
+            }
+
+            deleteSelectedText() {
+                if (this.selectedTextId === null) return;
+                const idx = this.textObjects.findIndex(t => t.id === this.selectedTextId);
+                if (idx !== -1) {
+                    this.textObjects.splice(idx, 1);
+                    this.selectedTextId = null;
+                    this.updateDeleteButtonState();
+                    this.render();
+                }
+            }
+
+            updateDeleteButtonState() {
+                const btn = document.getElementById('btn-elimina-testo');
+                if (!btn) return;
+                btn.classList.toggle('disabilitato', this.selectedTextId === null);
             }
 
             findTextAtPos(pos) {

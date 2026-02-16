@@ -4,12 +4,19 @@ let immagini = [];
 let idCounter = 1;
 
 async function getImmagini() {
-    return immagini;
+    /* Ordiniamo per posizione e poi per ID decrescente */
+    return [...immagini].sort((a, b) => {
+        if ((a.position || 0) !== (b.position || 0)) {
+            return (a.position || 0) - (b.position || 0);
+        }
+        return b.id - a.id;
+    });
 }
 
 async function salvaImmagine(img) {
     img.id = idCounter;
     idCounter += 1;
+    if (img.position === undefined) img.position = 0;
     immagini.push(img);
     return true;
 }
@@ -40,6 +47,16 @@ async function eliminaImmagine(id) {
     return false;
 }
 
+async function aggiornaPosizioni(ordini) {
+    for (const item of ordini) {
+        const i = trovaIndiceImmagine(item.id);
+        if (i >= 0) {
+            immagini[i].position = item.position;
+        }
+    }
+    return true;
+}
+
 function trovaIndiceImmagine(id) {
     for (let i = 0; i < immagini.length; i++) {
         if (immagini[i].id === id) return i;
@@ -54,7 +71,16 @@ function inizializza(callback) {
         if (err) console.log('Lettura DB non riuscita');
         else {
             console.log('DB caricato correttamente');
-            immagini = JSON.parse(content);
+            try {
+                immagini = JSON.parse(content);
+                // Aggiorna l'idCounter basandosi sul massimo ID presente
+                if (immagini.length > 0) {
+                    idCounter = Math.max(...immagini.map(img => img.id)) + 1;
+                }
+            } catch (e) {
+                console.error('Errore parsing JSON DB:', e);
+                immagini = [];
+            }
         }
 
         // ogni 10 secondi salvo le immagini in un file json
@@ -62,7 +88,7 @@ function inizializza(callback) {
             const dbContent = JSON.stringify(immagini);
             fs.writeFile(DB_FILE_PATH, dbContent, err => {
                 if (err) console.log("Non sono riuscito a salvare il db :(");
-                else     console.log("Il db è stato salvato");
+                else console.log("Il db è stato salvato");
             })
         }, 10000);
 
@@ -76,5 +102,6 @@ module.exports = {
     salvaImmagine,
     trovaImmagine,
     modificaImmagine,
-    eliminaImmagine
+    eliminaImmagine,
+    aggiornaPosizioni
 }
